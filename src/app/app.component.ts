@@ -1,5 +1,6 @@
 import { Component } from '@angular/core';
 import { MessageService } from 'primeng/api';
+import { Subscription } from 'rxjs';
 import { MapDistanceService } from './service/map-distance.service';
 
 declare var google;
@@ -11,6 +12,12 @@ declare var google;
 })
 export class AppComponent {
     options: any;
+
+    cityName: any;
+
+    citySub: Subscription;
+
+    cityRes:any = []
 
     math = Math;
 
@@ -40,23 +47,28 @@ export class AppComponent {
             center: { lat: 36.890257, lng: 30.707417 },
             zoom: 12
         };
+        this.marker();
 
+        this.infoWindow = new google.maps.InfoWindow();
+    }
+
+    marker() {
         navigator.geolocation.getCurrentPosition((position) => {
-            this.pos.push({ lat: position.coords.latitude, lng: position.coords.longitude, title: "requData" });
+            this.pos.push({ lat: position.coords.latitude, lng: position.coords.longitude, title: "currentLocation" });
             this.initOverlays();
-            this.polyline(this.pos);
+            // this.polyline([]);
+
+            // this.polyline(this.pos);
             this.dis = [];
             for (let i = 1; i < this.pos.length; i++) {
-                let pos = i - 1 + ' to ' + i;
+                let pos = this.pos[i - 1].title + ' to ' + this.pos[i].title;
                 console.log(pos)
                 this.dis.push({
                     posBetweenStop: pos,
                     dis: this.conversionData(this.pos.slice(i - 1, i + 1))
                 })
             }
-            console.log(this.dis)
         });
-        this.infoWindow = new google.maps.InfoWindow();
     }
 
     polyline(location) {
@@ -118,25 +130,30 @@ export class AppComponent {
     }
 
     initOverlays() {
-        if (!this.overlays || !this.overlays.length) {
-            let reqData = [];
-            this.pos.map(data => {
-                reqData.push(new google.maps.Marker({ position: { lat: data.lat, lng: data.lng }, title: "Ataturk Park" }))
-            });
-            reqData.push(new google.maps.Polyline({
-                path: this.pos,
-                geodesic: true,
-                strokeColor: '#FF0000',
-                strokeOpacity: 1.0,
-                strokeWeight: 2,
-                icons: [{
-                    icon: { path: google.maps.SymbolPath.FORWARD_CLOSED_ARROW },
-                    offset: '100%',
-                    repeat: '20px'
-                }]
-            }))
-            this.overlays = reqData;
-        }
+        // if (!this.overlays || !this.overlays.length) {
+            this.addmarkers();
+        // }
+    }
+
+    addmarkers() {
+        let reqData = [];
+        this.pos.map(data => {
+            reqData.push(new google.maps.Marker({ position: { lat: +data.lat, lng: +data.lng }, title: data.title }))
+        });
+        reqData.push(new google.maps.Polyline({
+            path: this.pos,
+            geodesic: true,
+            strokeColor: '#FF0000',
+            strokeOpacity: 1.0,
+            strokeWeight: 2,
+            icons: [{
+                icon: { path: google.maps.SymbolPath.FORWARD_CLOSED_ARROW },
+                offset: '100%',
+                repeat: '20px'
+            }]
+        }))
+        console.log(reqData)
+        this.overlays = reqData;
     }
 
     zoomIn(map) {
@@ -148,6 +165,8 @@ export class AppComponent {
     }
 
     clear() {
+        this.pos = [];
+        this.dis = [];
         this.overlays = [];
     }
 
@@ -156,12 +175,35 @@ export class AppComponent {
             var p1 = new google.maps.LatLng(pos[0].lat, pos[0].lng);
             var p2 = new google.maps.LatLng(pos[1].lat, pos[1].lng);
             let reqData = this.calcDistance(p1, p2);
-            console.log("ditance" + reqData)
             return reqData;
         }
     }
     calcDistance(p1, p2) {
         return (google.maps.geometry.spherical.computeDistanceBetween(p1, p2) / 1000).toFixed(2);
+    }
+
+    onKeyUp(event) {
+        if(this.citySub && !this.citySub.closed) {
+            this.citySub.unsubscribe();
+        }
+        this.citySub = this.mapDistanceService.getCity(event.target.value).subscribe((res: any) => {
+            let cityRes = [];
+            res.map(data => {
+                cityRes.push({
+                    lat: +data.lat, 
+                    lng: +data.lon, 
+                    title: data.address.city ? data.address.city : data.address.name
+                })
+            });
+            this.cityRes = cityRes;
+        })
+    }
+
+    onSelect(event) {
+        this.pos.pop();
+        console.log(event)
+        this.pos.push(event);
+        this.marker();
     }
 
 }
